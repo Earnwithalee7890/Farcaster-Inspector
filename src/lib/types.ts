@@ -22,14 +22,14 @@ export interface FarcasterUser {
     talent_score?: number;
     talent_passport_id?: string;
     is_verified?: boolean;
-}
-
-export interface TalentPassportResponse {
-    passport: {
-        score: number;
-        passport_id: string;
-        verified: boolean;
-    };
+    // Extended fields
+    neynar_score?: number;
+    power_badge?: boolean;
+    account_age?: { days: number; label: string };
+    cast_stats?: { total: number; replies: number; recasts: number; lastCastDate: string | null };
+    recent_casts?: any[];
+    trust_level?: 'High' | 'Medium' | 'Low' | 'Unknown';
+    spam_labels?: string[];
 }
 
 export interface NeynarFollowingResponse {

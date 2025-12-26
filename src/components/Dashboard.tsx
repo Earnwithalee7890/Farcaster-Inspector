@@ -24,6 +24,9 @@ export default function Dashboard() {
             const response = await axios.get(`/api/inspect?fid=${fid}`);
             setResults(response.data.users);
             setIsMock(!!response.data.isMock);
+            if (response.data.message) {
+                setError(response.data.message);
+            }
         } catch (err: any) {
             setError('Failed to fetch data. Please check the FID and try again.');
         } finally {

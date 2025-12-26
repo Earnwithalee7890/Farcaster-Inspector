@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { NeynarProvider } from "@/components/NeynarProvider";
 
 export const metadata: Metadata = {
   title: "Farcaster Inspector | Clean Your Feed",
@@ -21,8 +22,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="bg-blur"></div>
-        {children}
+        <NeynarProvider>
+          <div className="bg-blur"></div>
+          {children}
+        </NeynarProvider>
       </body>
     </html>
   );

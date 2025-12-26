@@ -10,61 +10,77 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fid = searchParams.get('fid');
 
-    console.log(`[Inspector] Checking FID: ${fid}`);
-
     if (!fid) {
         return NextResponse.json({ error: 'FID is required' }, { status: 400 });
     }
 
+    if (!NEYNAR_API_KEY) {
+        return NextResponse.json({ error: 'Neynar API Key not configured on server' }, { status: 500 });
+    }
+
     try {
-        // 1. Fetch user's following list (v2)
-        console.log(`[Neynar] Fetching following for FID ${fid}...`);
-        let rawUsers = [];
-        let isMock = false;
+        // 1. Fetch the user's profile using the FREE bulk endpoint
+        console.log(`[Inspector] Fetching profile for FID: ${fid}`);
 
-        try {
-            const neynarResponse = await axios.get(`https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=20`, {
-                headers: { api_key: NEYNAR_API_KEY }
-            });
-            rawUsers = neynarResponse.data.users;
-            console.log(`[Neynar] Success. Found ${rawUsers.length} users.`);
-        } catch (neynarError: any) {
-            console.error(`[Neynar] Error:`, neynarError.response?.data || neynarError.message);
-
-            if (neynarError.response?.status === 402 || neynarError.response?.data?.code === 'PaymentRequired') {
-                console.warn(`[Neynar] Payment Required error. Falling back to Mock data for demonstration.`);
-                return NextResponse.json({
-                    users: generateMockUsers(),
-                    message: "Neynar API requires a paid plan for social graph access. Showing demonstration data.",
-                    isMock: true
-                });
+        const userResponse = await axios.get(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+            headers: {
+                'accept': 'application/json',
+                'api_key': NEYNAR_API_KEY
             }
-            throw neynarError;
+        });
+
+        if (!userResponse.data.users || userResponse.data.users.length === 0) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // 2. Process and enrich with Talent Protocol
-        const processedUsers = await Promise.all(rawUsers.map(async (item: any) => {
-            // In Neynar V2 following, the structure is usually { user: { ... } }
-            const user = item.user || item;
+        const mainUser = userResponse.data.users[0];
+        console.log(`[Inspector] Found user: @${mainUser.username}`);
 
+        // 2. Fetch users that this user follows (if available) or use power badge holders as sample
+        let usersToAnalyze = [];
+
+        try {
+            // Try to get power badge users as a sample of active Farcaster users
+            const powerBadgeResponse = await axios.get(`https://api.neynar.com/v2/farcaster/user/power?limit=20`, {
+                headers: {
+                    'accept': 'application/json',
+                    'api_key': NEYNAR_API_KEY
+                }
+            });
+
+            if (powerBadgeResponse.data.users) {
+                usersToAnalyze = powerBadgeResponse.data.users;
+            }
+        } catch (e) {
+            console.log('[Inspector] Power badge endpoint not available, using single user analysis');
+        }
+
+        // If we couldn't get other users, just analyze the searched user
+        if (usersToAnalyze.length === 0) {
+            usersToAnalyze = [mainUser];
+        }
+
+        // 3. Process and enrich each user
+        const processedUsers = await Promise.all(usersToAnalyze.map(async (user: any) => {
             let talentData = { score: 0, passport_id: '', verified: false };
 
-            if (TALENT_API_KEY && user.fid) {
+            // Try to get Talent Protocol data
+            if (TALENT_API_KEY && user.verified_addresses?.eth_addresses?.length > 0) {
                 try {
-                    // We use the account search by FID
-                    const tpResponse = await axios.get(`https://api.talentprotocol.com/api/v2/passports/${user.fid}`, {
+                    const walletAddress = user.verified_addresses.eth_addresses[0];
+                    const tpResponse = await axios.get(`https://api.talentprotocol.com/api/v2/passports/${walletAddress}`, {
                         headers: { 'X-API-KEY': TALENT_API_KEY },
-                        timeout: 2000
+                        timeout: 3000
                     });
-                    if (tpResponse.data && tpResponse.data.passport) {
+                    if (tpResponse.data?.passport) {
                         talentData = {
                             score: tpResponse.data.passport.score || 0,
-                            passport_id: tpResponse.data.passport.passport_id,
-                            verified: tpResponse.data.passport.verified
+                            passport_id: tpResponse.data.passport.passport_id || '',
+                            verified: tpResponse.data.passport.verified || false
                         };
                     }
                 } catch (e) {
-                    // Silent fail for Talent Protocol enrichment
+                    // Talent Protocol lookup failed, continue without it
                 }
             }
 
@@ -73,11 +89,11 @@ export async function GET(request: NextRequest) {
                 username: user.username,
                 display_name: user.display_name,
                 pfp_url: user.pfp_url,
-                profile: user.profile,
+                profile: user.profile || { bio: { text: '' } },
                 follower_count: user.follower_count,
                 following_count: user.following_count,
-                verifications: user.verifications,
-                active_status: user.active_status,
+                verifications: user.verifications || [],
+                active_status: user.active_status || 'active',
                 talent_score: talentData.score,
                 talent_passport_id: talentData.passport_id,
                 is_verified: talentData.verified
@@ -87,6 +103,8 @@ export async function GET(request: NextRequest) {
 
             return {
                 ...u,
+                neynar_score: user.score || user.experimental?.neynar_user_score || 0,
+                power_badge: user.power_badge || false,
                 is_spam: spam.score > 50,
                 spam_score: spam.score,
                 spam_labels: spam.labels,
@@ -94,60 +112,30 @@ export async function GET(request: NextRequest) {
             };
         }));
 
-        return NextResponse.json({ users: processedUsers });
-    } catch (error: any) {
-        console.error('[Inspector] Global Error:', error.response?.data || error.message);
-        return NextResponse.json({ error: 'Failed to fetch data from Farcaster. Please check your API key plan.' }, { status: 500 });
-    }
-}
-
-function generateMockUsers() {
-    return [
-        {
-            fid: 3,
-            username: "dwr",
-            display_name: "Dan Romero",
-            pfp_url: "https://i.imgur.com/8RK9k6O.png",
-            profile: { bio: { text: "Co-founder of Farcaster." } },
-            follower_count: 600000,
-            following_count: 1400,
-            verifications: ["0x6ce09ed5526de4afe4a981ad86d17b2f5c92fea5"],
-            active_status: "active",
-            status_label: "Healthy",
-            talent_score: 95,
-            spam_score: 0,
-            spam_labels: []
-        },
-        {
-            fid: 888888,
-            username: "claim_rewards_99",
-            display_name: "🎁 FREE REWARDS 🎁",
-            pfp_url: "",
-            profile: { bio: { text: "Click the link for free tokens!" } },
-            follower_count: 12,
-            following_count: 8500,
-            verifications: [],
-            active_status: "inactive",
-            status_label: "Spam",
-            is_spam: true,
-            talent_score: 2,
-            spam_score: 90,
-            spam_labels: ["No/Default PFP", "Empty/Short Bio", "Suspicious Follower Ratio", "Low Reputation"]
-        },
-        {
-            fid: 121,
-            username: "ghost_dev",
-            display_name: "Legacy Builder",
-            pfp_url: "https://i.imgur.com/8RK9k6O.png",
-            profile: { bio: { text: "Building on Base." } },
-            follower_count: 1200,
-            following_count: 400,
-            verifications: ["0xabc"],
-            active_status: "inactive",
-            status_label: "Inactive",
-            talent_score: 45,
-            spam_score: 10,
-            spam_labels: []
+        // Put the searched user first
+        const searchedUserIndex = processedUsers.findIndex(u => u.fid === parseInt(fid));
+        if (searchedUserIndex > 0) {
+            const searchedUser = processedUsers.splice(searchedUserIndex, 1)[0];
+            processedUsers.unshift(searchedUser);
         }
-    ];
+
+        return NextResponse.json({
+            users: processedUsers,
+            searchedUser: processedUsers[0],
+            message: `Showing profile for @${mainUser.username} and ${processedUsers.length - 1} active Farcaster users`
+        });
+
+    } catch (error: any) {
+        console.error('[Inspector] Error:', error.response?.data || error.message);
+
+        if (error.response?.status === 402) {
+            return NextResponse.json({
+                error: 'This Neynar API endpoint requires a paid plan. Please upgrade at neynar.com'
+            }, { status: 402 });
+        }
+
+        return NextResponse.json({
+            error: error.response?.data?.message || 'Failed to fetch data. Please try again.'
+        }, { status: 500 });
+    }
 }

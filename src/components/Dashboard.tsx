@@ -40,6 +40,7 @@ export default function Dashboard() {
 
     const spamCount = results.filter(u => u.status_label === 'Spam').length;
     const inactiveCount = results.filter(u => u.status_label === 'Inactive').length;
+    const highTrustCount = results.filter(u => (u.talent_score || 0) > 60).length;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -93,6 +94,7 @@ export default function Dashboard() {
                         Showing mock data (Neynar API Key not found)
                     </p>
                 )}
+                {error && <p style={{ color: 'var(--danger)', marginTop: '1rem' }}>{error}</p>}
             </section>
 
             {results.length > 0 && (
@@ -109,6 +111,10 @@ export default function Dashboard() {
                         <div className="glass-card" onClick={() => setFilter('inactive')} style={{ padding: '1.5rem', textAlign: 'center', borderBottom: '3px solid var(--warning)', cursor: 'pointer' }}>
                             <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Inactive</p>
                             <h2 style={{ fontSize: '2rem', color: 'var(--warning)' }}>{inactiveCount}</h2>
+                        </div>
+                        <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center', borderBottom: '3px solid var(--secondary)' }}>
+                            <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>High Reputation</p>
+                            <h2 style={{ fontSize: '2rem', color: 'var(--secondary)' }}>{highTrustCount}</h2>
                         </div>
                     </div>
 

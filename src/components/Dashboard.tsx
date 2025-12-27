@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { Search, Loader2, Trash2, AlertCircle, Users, Shield, Zap, List, User, LogOut, UserCheck, Ghost, ExternalLink, TrendingUp, Scan, AlertTriangle } from 'lucide-react';
 import UserCard from './UserCard';
-import DuneInsights from './DuneInsights';
-import WalletProfile from './WalletProfile';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
@@ -667,23 +665,105 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Dune Analytics Section */}
+            {/* Score Explorer Section */}
             {isAuthenticated && (
                 <section style={{ marginTop: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                        <TrendingUp size={24} color="var(--warning)" />
-                        <h2 style={{ fontSize: '1.5rem' }}>Farcaster Analytics</h2>
-                        <span style={{
-                            background: 'linear-gradient(135deg, #FF6B35, #F7931A)',
-                            padding: '3px 10px',
-                            borderRadius: '20px',
-                            fontSize: '0.7rem',
-                            fontWeight: 600
-                        }}>DUNE</span>
+                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                        <h2 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📊 Explore Reputation Scores</h2>
+                        <p style={{ color: 'var(--muted)' }}>Dive deeper into different scoring systems</p>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
-                        <DuneInsights />
-                        <WalletProfile walletAddress={user?.pfp_url ? undefined : undefined} />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+
+                        {/* Talent Builder Score */}
+                        <a href="/talent" style={{ textDecoration: 'none' }}>
+                            <motion.div
+                                className="glass-card glow-on-hover"
+                                whileHover={{ scale: 1.02 }}
+                                style={{
+                                    padding: '2rem',
+                                    cursor: 'pointer',
+                                    border: '1px solid rgba(255, 215, 0, 0.3)',
+                                    background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1), transparent)'
+                                }}
+                            >
+                                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🏆</div>
+                                <h3 style={{ marginBottom: '0.5rem', color: '#FFD700' }}>Talent Builder Score</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                                    Measure your builder reputation based on code contributions, onchain activity, and verification.
+                                </p>
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    color: '#FFD700',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600
+                                }}>
+                                    Explore <ExternalLink size={14} />
+                                </div>
+                            </motion.div>
+                        </a>
+
+                        {/* Quotient Score */}
+                        <a href="/quotient" style={{ textDecoration: 'none' }}>
+                            <motion.div
+                                className="glass-card glow-on-hover"
+                                whileHover={{ scale: 1.02 }}
+                                style={{
+                                    padding: '2rem',
+                                    cursor: 'pointer',
+                                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), transparent)'
+                                }}
+                            >
+                                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📈</div>
+                                <h3 style={{ marginBottom: '0.5rem', color: '#8B5CF6' }}>Quotient Score</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                                    Analyze engagement momentum and relevance. Quality over quantity, recency weighted.
+                                </p>
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    color: '#8B5CF6',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600
+                                }}>
+                                    Explore <ExternalLink size={14} />
+                                </div>
+                            </motion.div>
+                        </a>
+
+                        {/* Neynar Score */}
+                        <a href="/neynar" style={{ textDecoration: 'none' }}>
+                            <motion.div
+                                className="glass-card glow-on-hover"
+                                whileHover={{ scale: 1.02 }}
+                                style={{
+                                    padding: '2rem',
+                                    cursor: 'pointer',
+                                    border: '1px solid rgba(124, 58, 237, 0.3)',
+                                    background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1), transparent)'
+                                }}
+                            >
+                                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🛡️</div>
+                                <h3 style={{ marginBottom: '0.5rem', color: '#7C3AED' }}>Neynar Score</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                                    Trust verification and spam detection. Identify authentic vs suspicious accounts.
+                                </p>
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    color: '#7C3AED',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600
+                                }}>
+                                    Explore <ExternalLink size={14} />
+                                </div>
+                            </motion.div>
+                        </a>
+
                     </div>
                 </section>
             )}

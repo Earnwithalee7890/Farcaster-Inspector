@@ -12,9 +12,10 @@ interface TalentData {
     display_name: string;
     pfp_url: string;
     talent_score: number;
+    talent_builder_score?: number;
+    talent_creator_score?: number;
     talent_passport_id?: string;
     is_verified: boolean;
-    builder_score?: number;
     skills?: string[];
 }
 
@@ -172,21 +173,16 @@ export default function TalentPage() {
                     </div>
 
                     {/* Score Breakdown */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(255,215,0,0.1)', borderRadius: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(255,215,0,0.1)', borderRadius: '10px', border: '1px solid rgba(255,215,0,0.2)' }}>
                             <Code size={24} color="#FFD700" style={{ margin: '0 auto 0.5rem' }} />
-                            <p style={{ fontWeight: 600 }}>Builder</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Code contributions</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>BUILDER SCORE</p>
+                            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#FFD700' }}>{userData.talent_builder_score || 0}</p>
                         </div>
-                        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(16,185,129,0.1)', borderRadius: '10px' }}>
-                            <Users size={24} color="#10B981" style={{ margin: '0 auto 0.5rem' }} />
-                            <p style={{ fontWeight: 600 }}>Social</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Farcaster presence</p>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(124,58,237,0.1)', borderRadius: '10px' }}>
-                            <Zap size={24} color="#7C3AED" style={{ margin: '0 auto 0.5rem' }} />
-                            <p style={{ fontWeight: 600 }}>Onchain</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Wallet activity</p>
+                        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(16,185,129,0.1)', borderRadius: '10px', border: '1px solid rgba(16,185,129,0.2)' }}>
+                            <Star size={24} color="#10B981" style={{ margin: '0 auto 0.5rem' }} />
+                            <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>CREATOR SCORE</p>
+                            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10B981' }}>{userData.talent_creator_score || 0}</p>
                         </div>
                     </div>
 

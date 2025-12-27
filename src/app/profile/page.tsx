@@ -165,7 +165,10 @@ export default function ProfilePage() {
                             <Award size={24} color="#FFD700" style={{ margin: '0 auto 0.75rem' }} />
                             <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>TALENT SCORE</p>
                             <p style={{ fontSize: '1.75rem', fontWeight: 800, color: '#FFD700' }}>{userData.talent_score || '0'}</p>
-                            <p style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '4px' }}>Onchain builder reputation</p>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>
+                                <span style={{ color: '#FFD700' }}>🔨 B: {userData.talent_builder_score || 0}</span>
+                                <span style={{ color: '#10B981' }}>⭐ C: {userData.talent_creator_score || 0}</span>
+                            </div>
                         </div>
 
                         {/* Quotient Score */}

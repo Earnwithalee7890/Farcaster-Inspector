@@ -20,6 +20,8 @@ export interface FarcasterUser {
     status_label?: 'Healthy' | 'Inactive' | 'Spam';
     // Talent Protocol fields
     talent_score?: number;
+    talent_builder_score?: number;
+    talent_creator_score?: number;
     talent_passport_id?: string;
     is_verified?: boolean;
     // Extended fields

@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
             }
 
             // Talent Protocol lookup (skip in batch mode for speed)
-            let talentData = { score: 0, passport_id: '', verified: false };
+            let talentData = { score: 0, builder_score: 0, creator_score: 0, passport_id: '', verified: false };
             if (!batchMode && TALENT_API_KEY && user.verified_addresses?.eth_addresses?.length > 0) {
                 try {
                     const wallet = user.verified_addresses.eth_addresses[0];
@@ -102,6 +102,8 @@ export async function GET(request: NextRequest) {
                     if (tpResponse.data?.passport) {
                         talentData = {
                             score: tpResponse.data.passport.score || 0,
+                            builder_score: tpResponse.data.passport.builder_score || 0,
+                            creator_score: tpResponse.data.passport.creator_score || 0,
                             passport_id: tpResponse.data.passport.passport_id || '',
                             verified: tpResponse.data.passport.verified || false
                         };
@@ -129,6 +131,8 @@ export async function GET(request: NextRequest) {
                 verifications: user.verifications || [],
                 active_status: user.active_status || 'active',
                 talent_score: talentData.score,
+                talent_builder_score: talentData.builder_score,
+                talent_creator_score: talentData.creator_score,
                 talent_passport_id: talentData.passport_id,
                 is_verified: talentData.verified,
                 cast_stats: castStats,

@@ -12,6 +12,13 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Farcaster Inspector",
   },
+  other: {
+    "fc:frame": "vNext",
+    "fc:frame:image": "https://farcaster-inspector.vercel.app/og-image.png",
+    "fc:frame:button:1": "Open Inspector",
+    "fc:frame:button:1:action": "launch_frame",
+    "fc:frame:button:1:target": "https://farcaster-inspector.vercel.app",
+  },
 };
 
 export default function RootLayout({

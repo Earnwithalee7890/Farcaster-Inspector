@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { calculateSpamScore, calculateTrustLevel, calculateInactivityDays } from '@/lib/scoring';
 import { FarcasterUser } from '@/lib/types';
+import duneAPI from '@/lib/dune';
+import quotientAPI, { getQuotientTier, getQuotientTierColor, getQuotientTierEmoji } from '@/lib/quotient';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const TALENT_API_KEY = process.env.TALENT_PROTOCOL_API_KEY;
+const DUNE_API_KEY = process.env.DUNE_API_KEY;
+const QUOTIENT_API_KEY = process.env.QUOTIENT_API_KEY;
 
 function estimateAccountAge(fid: number): { days: number; label: string } {
     const fidsPerDay = 818;
@@ -53,6 +57,12 @@ export async function GET(request: NextRequest) {
         const users = userResponse.data.users;
         console.log(`[Inspector] Found ${users.length} users`);
 
+        // Batch fetch Quotient scores (more efficient)
+        const userFids = users.map((u: any) => u.fid);
+        const quotientScoresMap = QUOTIENT_API_KEY
+            ? await quotientAPI.getUserReputationsMap(userFids)
+            : new Map();
+
         // Process all users
         const processedUsers = await Promise.all(users.map(async (user: any) => {
             const accountAge = estimateAccountAge(user.fid);
@@ -95,6 +105,15 @@ export async function GET(request: NextRequest) {
                 } catch (e) { }
             }
 
+            // Dune onchain labels lookup (skip in batch mode for speed)
+            let duneLabels: string[] = [];
+            if (!batchMode && DUNE_API_KEY && user.verified_addresses?.eth_addresses?.length > 0) {
+                try {
+                    const wallet = user.verified_addresses.eth_addresses[0];
+                    duneLabels = await duneAPI.getWalletLabels(wallet);
+                } catch (e) { }
+            }
+
             const userData: FarcasterUser = {
                 fid: user.fid,
                 username: user.username,
@@ -115,6 +134,9 @@ export async function GET(request: NextRequest) {
             const spamResult = calculateSpamScore(userData);
             const trustLevel = calculateTrustLevel(user.score || 0, talentData.score, user.power_badge);
 
+            // Get Quotient score from pre-fetched map
+            const quotientData = quotientScoresMap.get(user.fid);
+
             return {
                 ...userData,
                 neynar_score: user.score || user.experimental?.neynar_user_score || 0,
@@ -124,7 +146,13 @@ export async function GET(request: NextRequest) {
                 spam_score: spamResult.score,
                 spam_labels: spamResult.labels,
                 trust_level: trustLevel,
-                status_label: spamResult.score > 50 ? 'Spam' : (inactivityDays > 30 ? 'Inactive' : 'Healthy')
+                status_label: spamResult.score > 50 ? 'Spam' : (inactivityDays > 30 ? 'Inactive' : 'Healthy'),
+                dune_labels: duneLabels,
+                quotient_score: quotientData?.quotient_score || null,
+                quotient_rank: quotientData?.rank || null,
+                quotient_tier: quotientData?.tier || null,
+                quotient_tier_color: quotientData ? getQuotientTierColor(quotientData.tier) : null,
+                quotient_tier_emoji: quotientData ? getQuotientTierEmoji(quotientData.tier) : null
             };
         }));
 

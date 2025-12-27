@@ -109,6 +109,22 @@ export default function UserCard({ user }: UserCardProps) {
                         <Zap size={10} /> {user.talent_score}
                     </div>
                 )}
+                {user.quotient_score && (
+                    <div style={{
+                        fontSize: '0.65rem',
+                        color: user.quotient_tier_color || '#F59E0B',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        background: `${user.quotient_tier_color || '#F59E0B'}15`,
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        border: `1px solid ${user.quotient_tier_color || '#F59E0B'}30`
+                    }}>
+                        {user.quotient_tier_emoji || '📊'} Q: {(user.quotient_score * 100).toFixed(0)}
+                        {user.quotient_rank && <span style={{ opacity: 0.7 }}> #{user.quotient_rank}</span>}
+                    </div>
+                )}
                 {user.account_age && (
                     <div style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(255,255,255,0.05)', padding: '3px 6px', borderRadius: '4px' }}>
                         <Calendar size={10} /> {user.account_age.label}
@@ -135,6 +151,24 @@ export default function UserCard({ user }: UserCardProps) {
                     {user.spam_labels.map((label: string, i: number) => (
                         <span key={i} style={{ fontSize: '0.6rem', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 5px', borderRadius: '3px' }}>
                             {label}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Dune Onchain Labels */}
+            {user.dune_labels && user.dune_labels.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '0.25rem' }}>
+                    {user.dune_labels.map((label: string, i: number) => (
+                        <span key={i} style={{
+                            fontSize: '0.6rem',
+                            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(236, 72, 153, 0.15))',
+                            color: '#A855F7',
+                            padding: '2px 5px',
+                            borderRadius: '3px',
+                            border: '1px solid rgba(139, 92, 246, 0.2)'
+                        }}>
+                            🔗 {label}
                         </span>
                     ))}
                 </div>

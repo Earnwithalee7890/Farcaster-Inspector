@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
-import { Search, Loader2, Trash2, AlertCircle, Users, Shield, Zap, List, User, LogOut, UserCheck, Ghost, ExternalLink } from 'lucide-react';
+import { Search, Loader2, Trash2, AlertCircle, Users, Shield, Zap, List, User, LogOut, UserCheck, Ghost, ExternalLink, TrendingUp } from 'lucide-react';
 import UserCard from './UserCard';
+import DuneInsights from './DuneInsights';
+import WalletProfile from './WalletProfile';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
-    const { user, isAuthenticated, login, logout, loading: authLoading } = useAuth();
+    const { user, isAuthenticated, login, logout, loading: authLoading, isInFrame, sdkReady } = useAuth();
     const [loginFid, setLoginFid] = useState('');
     const [fid, setFid] = useState('');
     const [batchFids, setBatchFids] = useState('');
@@ -355,6 +357,27 @@ export default function Dashboard() {
                     </div>
                     {filteredResults.length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}><Trash2 size={36} style={{ marginBottom: '0.5rem', opacity: 0.5 }} /><p>No users match this filter.</p></div>}
                 </div>
+            )}
+
+            {/* Dune Analytics Section */}
+            {isAuthenticated && (
+                <section style={{ marginTop: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        <TrendingUp size={24} color="var(--warning)" />
+                        <h2 style={{ fontSize: '1.5rem' }}>Farcaster Analytics</h2>
+                        <span style={{
+                            background: 'linear-gradient(135deg, #FF6B35, #F7931A)',
+                            padding: '3px 10px',
+                            borderRadius: '20px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600
+                        }}>DUNE</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
+                        <DuneInsights />
+                        <WalletProfile walletAddress={user?.pfp_url ? undefined : undefined} />
+                    </div>
+                </section>
             )}
         </div>
     );

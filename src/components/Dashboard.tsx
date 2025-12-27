@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
-import { Search, Loader2, Trash2, AlertCircle, Users, Shield, Zap, List, User, LogOut, UserCheck, Ghost, ExternalLink, TrendingUp } from 'lucide-react';
+import { Search, Loader2, Trash2, AlertCircle, Users, Shield, Zap, List, User, LogOut, UserCheck, Ghost, ExternalLink, TrendingUp, Scan, AlertTriangle } from 'lucide-react';
 import UserCard from './UserCard';
 import DuneInsights from './DuneInsights';
 import WalletProfile from './WalletProfile';
@@ -24,6 +24,10 @@ export default function Dashboard() {
     const [message, setMessage] = useState('');
     const [showFollowingGuide, setShowFollowingGuide] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [scanningFollowing, setScanningFollowing] = useState(false);
+    const [followingResults, setFollowingResults] = useState<any[]>([]);
+    const [followingStats, setFollowingStats] = useState<any>(null);
+    const [showFollowingScan, setShowFollowingScan] = useState(false);
 
     useEffect(() => {
         if (isAuthenticated && user?.fid) {
@@ -79,6 +83,33 @@ export default function Dashboard() {
         if (level === 'Medium') return 'var(--warning)';
         if (level === 'Low') return 'var(--danger)';
         return 'var(--muted)';
+    };
+
+    // Scan user's following list for spam
+    const scanMyFollowing = async () => {
+        if (!user?.fid) return;
+
+        setScanningFollowing(true);
+        setFollowingResults([]);
+        setFollowingStats(null);
+        setError('');
+        setShowFollowingScan(true);
+
+        try {
+            const response = await axios.get(`/api/following?fid=${user.fid}&limit=100`);
+
+            if (response.data.success) {
+                setFollowingResults(response.data.users || []);
+                setFollowingStats(response.data.stats);
+                setMessage(response.data.message);
+            } else {
+                setError(response.data.error || 'Failed to scan following');
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.error || 'Failed to scan your following list');
+        } finally {
+            setScanningFollowing(false);
+        }
     };
 
     return (
@@ -187,7 +218,29 @@ export default function Dashboard() {
                 {/* Quick Actions */}
                 {isAuthenticated && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
-                        <button onClick={() => { setMode('single'); setFid(user?.fid?.toString() || ''); }} className="glass-card glow-on-hover" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', border: '1px solid var(--primary)' }}>
+                        {/* MAIN FEATURE: Scan My Following */}
+                        <button
+                            onClick={scanMyFollowing}
+                            disabled={scanningFollowing}
+                            className="glass-card glow-on-hover"
+                            style={{
+                                padding: '1rem 1.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                cursor: scanningFollowing ? 'wait' : 'pointer',
+                                border: '2px solid var(--danger)',
+                                background: 'rgba(239, 68, 68, 0.1)'
+                            }}
+                        >
+                            {scanningFollowing ? <Loader2 size={20} className="animate-spin" color="var(--danger)" /> : <Scan size={20} color="var(--danger)" />}
+                            <div style={{ textAlign: 'left' }}>
+                                <p style={{ fontWeight: 600, color: 'var(--danger)' }}>🔍 Scan My Following</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Find spam accounts to unfollow</p>
+                            </div>
+                        </button>
+
+                        <button onClick={() => { setMode('single'); setFid(user?.fid?.toString() || ''); setShowFollowingScan(false); }} className="glass-card glow-on-hover" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', border: '1px solid var(--primary)' }}>
                             <UserCheck size={20} color="var(--primary)" />
                             <div style={{ textAlign: 'left' }}>
                                 <p style={{ fontWeight: 600 }}>Check My Profile</p>
@@ -195,15 +248,7 @@ export default function Dashboard() {
                             </div>
                         </button>
 
-                        <button onClick={() => setShowFollowingGuide(true)} className="glass-card glow-on-hover" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', border: '1px solid var(--warning)' }}>
-                            <Ghost size={20} color="var(--warning)" />
-                            <div style={{ textAlign: 'left' }}>
-                                <p style={{ fontWeight: 600 }}>Find Inactive Following</p>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Check who you follow</p>
-                            </div>
-                        </button>
-
-                        <button onClick={() => setMode('batch')} className="glass-card glow-on-hover" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', border: '1px solid var(--secondary)' }}>
+                        <button onClick={() => { setMode('batch'); setShowFollowingScan(false); }} className="glass-card glow-on-hover" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', border: '1px solid var(--secondary)' }}>
                             <List size={20} color="var(--secondary)" />
                             <div style={{ textAlign: 'left' }}>
                                 <p style={{ fontWeight: 600 }}>Batch Analyze</p>
@@ -287,6 +332,156 @@ export default function Dashboard() {
                 {error && <p style={{ marginTop: '1rem', color: 'var(--danger)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><AlertCircle size={14} /> {error}</p>}
                 {message && !error && <p style={{ marginTop: '1rem', color: 'var(--secondary)', fontSize: '0.9rem' }}>{message}</p>}
             </section>
+
+            {/* Following Scan Results */}
+            {showFollowingScan && (
+                <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1.5rem', border: '2px solid var(--danger)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Scan size={24} color="var(--danger)" />
+                                🔍 Your Following Analysis
+                            </h3>
+                            <button onClick={() => setShowFollowingScan(false)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: 'var(--card-border)', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                                Close
+                            </button>
+                        </div>
+
+                        {scanningFollowing && (
+                            <div style={{ textAlign: 'center', padding: '3rem' }}>
+                                <Loader2 className="animate-spin" size={40} style={{ margin: '0 auto 1rem', color: 'var(--danger)' }} />
+                                <p style={{ color: 'var(--muted)' }}>Scanning your following list for spam accounts...</p>
+                            </div>
+                        )}
+
+                        {followingStats && !scanningFollowing && (
+                            <>
+                                {/* Stats Summary */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                    <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', borderBottom: '3px solid var(--primary)' }}>
+                                        <p style={{ fontSize: '1.75rem', fontWeight: 700 }}>{followingStats.total}</p>
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>Scanned</p>
+                                    </div>
+                                    <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '10px', borderBottom: '3px solid var(--danger)' }}>
+                                        <p style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--danger)' }}>{followingStats.spam}</p>
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>🚨 Spam</p>
+                                    </div>
+                                    <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(245, 158, 11, 0.15)', borderRadius: '10px', borderBottom: '3px solid var(--warning)' }}>
+                                        <p style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--warning)' }}>{followingStats.suspicious}</p>
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>⚠️ Suspicious</p>
+                                    </div>
+                                    <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '10px', borderBottom: '3px solid var(--success)' }}>
+                                        <p style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--success)' }}>{followingStats.healthy}</p>
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>✅ Healthy</p>
+                                    </div>
+                                </div>
+
+                                {/* Accounts to Review */}
+                                {followingResults.filter(u => u.should_review).length > 0 && (
+                                    <div>
+                                        <h4 style={{ marginBottom: '1rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <AlertTriangle size={18} />
+                                            Accounts Worth Reviewing ({followingResults.filter(u => u.should_review).length})
+                                        </h4>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '0.75rem' }}>
+                                            {followingResults.filter(u => u.should_review).map((account: any) => (
+                                                <div
+                                                    key={account.fid}
+                                                    className="glass-card"
+                                                    style={{
+                                                        padding: '1rem',
+                                                        border: `1px solid ${account.status === 'spam' ? 'var(--danger)' : 'var(--warning)'}`,
+                                                        background: account.status === 'spam' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(245, 158, 11, 0.05)'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                                        <img
+                                                            src={account.pfp_url || 'https://wrpcd.net/cdn-cgi/image/fit=contain,f=auto,w=144/https%3A%2F%2Fwarpcast.com%2F-%2Fimages%2Fdefault-avatar.png'}
+                                                            alt=""
+                                                            style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'var(--card-border)' }}
+                                                        />
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <p style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {account.display_name || account.username}
+                                                            </p>
+                                                            <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                                                                @{account.username} • {account.follower_count} followers
+                                                            </p>
+                                                        </div>
+                                                        <div style={{
+                                                            padding: '4px 8px',
+                                                            borderRadius: '6px',
+                                                            background: account.status === 'spam' ? 'var(--danger)' : 'var(--warning)',
+                                                            color: 'white',
+                                                            fontSize: '0.65rem',
+                                                            fontWeight: 600
+                                                        }}>
+                                                            {account.status === 'spam' ? '🚨 SPAM' : '⚠️ CHECK'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Spam Indicators */}
+                                                    {account.spam_indicators.length > 0 && (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.75rem' }}>
+                                                            {account.spam_indicators.map((indicator: string, i: number) => (
+                                                                <span
+                                                                    key={i}
+                                                                    style={{
+                                                                        fontSize: '0.6rem',
+                                                                        padding: '3px 6px',
+                                                                        borderRadius: '4px',
+                                                                        background: 'rgba(239, 68, 68, 0.15)',
+                                                                        color: 'var(--danger)'
+                                                                    }}
+                                                                >
+                                                                    {indicator}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Actions */}
+                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                        <a
+                                                            href={`https://warpcast.com/${account.username}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{
+                                                                flex: 1,
+                                                                padding: '0.5rem',
+                                                                borderRadius: '6px',
+                                                                background: 'var(--card-border)',
+                                                                color: 'white',
+                                                                fontSize: '0.75rem',
+                                                                textAlign: 'center',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                gap: '4px'
+                                                            }}
+                                                        >
+                                                            View Profile <ExternalLink size={12} />
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* All Clear */}
+                                {followingResults.filter(u => u.should_review).length === 0 && (
+                                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--success)' }}>
+                                        <Shield size={40} style={{ margin: '0 auto 0.75rem' }} />
+                                        <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>Your following list looks clean! 🎉</p>
+                                        <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No spam or suspicious accounts detected.</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </motion.section>
+            )}
 
             {/* Batch Stats */}
             {stats && mode === 'batch' && (

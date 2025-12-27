@@ -241,7 +241,79 @@ class DuneAPI {
         CHANNEL_LEADERBOARD: 3306580, // Channel engagement
         WALLET_ANALYSIS: 3306581, // Wallet deep dive
         SOCIAL_GRAPH: 3306582, // Follower recommendations
+        USER_FOLLOWING: 3306583, // Get user's following list
     };
+
+    /**
+     * Execute a raw SQL query on Dune (requires Plus plan for some features)
+     */
+    async executeSQL<T>(sql: string): Promise<T[] | null> {
+        if (!this.apiKey) {
+            console.warn('[Dune] API key not configured');
+            return null;
+        }
+
+        try {
+            const response = await axios.post(
+                `${DUNE_BASE_URL}/query/execute/inline`,
+                { query_sql: sql },
+                {
+                    headers: {
+                        'X-Dune-Api-Key': this.apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
+                }
+            );
+
+            const executionId = response.data.execution_id;
+
+            // Poll for results
+            let attempts = 0;
+            const maxAttempts = 30;
+
+            while (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const statusResponse = await axios.get(
+                    `${DUNE_BASE_URL}/execution/${executionId}/results`,
+                    { headers: { 'X-Dune-Api-Key': this.apiKey } }
+                );
+
+                if (statusResponse.data.state === 'QUERY_STATE_COMPLETED') {
+                    return statusResponse.data.result?.rows as T[];
+                }
+
+                if (statusResponse.data.state === 'QUERY_STATE_FAILED') {
+                    console.error('[Dune] SQL Query failed');
+                    return null;
+                }
+
+                attempts++;
+            }
+
+            return null;
+        } catch (error: any) {
+            console.error('[Dune] SQL Error:', error.response?.data || error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get user's following list FIDs using Dune's farcaster_links table
+     * Note: This uses Dune's dataset which updates every 12 hours
+     */
+    async getUserFollowingFids(fid: number, limit: number = 100): Promise<number[] | null> {
+        const sql = `
+            SELECT target_fid 
+            FROM dune.neynar.dataset_farcaster_links 
+            WHERE fid = ${fid} AND link_type = 'follow'
+            LIMIT ${limit}
+        `;
+
+        const results = await this.executeSQL<{ target_fid: number }>(sql);
+        return results?.map(r => r.target_fid) || null;
+    }
 
     /**
      * Get power user rankings

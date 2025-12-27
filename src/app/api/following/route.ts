@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { calculateTrustLevel } from '@/lib/scoring';
+import duneAPI from '@/lib/dune';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+const DUNE_API_KEY = process.env.DUNE_API_KEY;
 
 function estimateAccountAge(fid: number): { days: number; label: string } {
     const fidsPerDay = 818;
@@ -29,7 +31,7 @@ function analyzeUserForSpam(user: any) {
 
     // Very new account with suspicious activity
     if (accountAge.days < 30 && user.following_count > 500) {
-        spamIndicators.push('New account, mass following');
+        spamIndicators.push('New mass follower');
         spamScore += 25;
     }
 
@@ -45,9 +47,9 @@ function analyzeUserForSpam(user: any) {
         spamScore += 10;
     }
 
-    // Very low engagement score
+    // Very low engagement score (Neynar score)
     const neynarScore = user.score || user.experimental?.neynar_user_score || 0;
-    if (neynarScore < 0.2) {
+    if (neynarScore > 0 && neynarScore < 0.2) {
         spamIndicators.push('Low engagement');
         spamScore += 15;
     }
@@ -58,10 +60,16 @@ function analyzeUserForSpam(user: any) {
         spamScore += 10;
     }
 
-    // Determine status
-    let status = 'healthy';
-    if (spamScore >= 50) status = 'spam';
-    else if (spamScore >= 30) status = 'suspicious';
+    // Determine status with clear labels
+    let status = 'safe';
+    let statusEmoji = '✅';
+    if (spamScore >= 50) {
+        status = 'spam';
+        statusEmoji = '🚨';
+    } else if (spamScore >= 30) {
+        status = 'suspicious';
+        statusEmoji = '⚠️';
+    }
 
     const trustLevel = calculateTrustLevel(neynarScore, 0, user.power_badge);
 
@@ -80,6 +88,7 @@ function analyzeUserForSpam(user: any) {
         spam_indicators: spamIndicators,
         trust_level: trustLevel,
         status: status,
+        status_emoji: statusEmoji,
         should_review: spamScore >= 30
     };
 }
@@ -87,13 +96,15 @@ function analyzeUserForSpam(user: any) {
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fid = searchParams.get('fid');
-    const fidsParam = searchParams.get('fids'); // For manual FID list input
+    const fidsParam = searchParams.get('fids');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 100);
 
     if (!NEYNAR_API_KEY) {
         return NextResponse.json({ error: 'Neynar API Key not configured' }, { status: 500 });
     }
 
-    // If user provides a list of FIDs directly, analyze those (works without paid plan)
+    // ==================== METHOD 1: Direct FIDs provided ====================
+    // This always works (FREE) - user provides FIDs to analyze
     if (fidsParam) {
         try {
             const fids = fidsParam.split(',')
@@ -107,7 +118,6 @@ export async function GET(request: NextRequest) {
 
             console.log(`[Following] Analyzing ${fids.length} provided FIDs`);
 
-            // Fetch user data for the provided FIDs (this is FREE!)
             const userResponse = await axios.get(
                 `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids.join(',')}`,
                 { headers: { 'accept': 'application/json', 'api_key': NEYNAR_API_KEY } }
@@ -115,108 +125,146 @@ export async function GET(request: NextRequest) {
 
             const users = userResponse.data.users || [];
             const processedUsers = users.map(analyzeUserForSpam);
-
-            // Sort by spam score (highest first)
             processedUsers.sort((a: any, b: any) => b.spam_score - a.spam_score);
 
-            // Calculate stats
-            const spamCount = processedUsers.filter((u: any) => u.status === 'spam').length;
-            const suspiciousCount = processedUsers.filter((u: any) => u.status === 'suspicious').length;
-            const healthyCount = processedUsers.filter((u: any) => u.status === 'healthy').length;
-            const reviewCount = processedUsers.filter((u: any) => u.should_review).length;
+            const stats = {
+                total: processedUsers.length,
+                spam: processedUsers.filter((u: any) => u.status === 'spam').length,
+                suspicious: processedUsers.filter((u: any) => u.status === 'suspicious').length,
+                safe: processedUsers.filter((u: any) => u.status === 'safe').length,
+                needs_review: processedUsers.filter((u: any) => u.should_review).length
+            };
 
             return NextResponse.json({
                 success: true,
                 users: processedUsers,
-                stats: {
-                    total: processedUsers.length,
-                    spam: spamCount,
-                    suspicious: suspiciousCount,
-                    healthy: healthyCount,
-                    needs_review: reviewCount
-                },
-                pagination: { has_more: false, next_cursor: null },
-                message: `Found ${reviewCount} accounts worth reviewing out of ${processedUsers.length}`
+                stats,
+                method: 'direct',
+                message: `Analyzed ${stats.total} accounts - ${stats.spam} spam, ${stats.suspicious} suspicious, ${stats.safe} safe`
             });
 
         } catch (error: any) {
             console.error('[Following] Bulk analysis error:', error.response?.data || error.message);
             return NextResponse.json({
+                success: false,
                 error: error.response?.data?.message || 'Failed to analyze users'
             }, { status: 500 });
         }
     }
 
-    // Try to fetch following directly (requires paid Neynar plan)
+    // ==================== METHOD 2: Automatic following scan ====================
     if (fid) {
-        try {
-            console.log(`[Following] Attempting to fetch following list for FID: ${fid}`);
+        let followingFids: number[] | null = null;
+        let method = '';
 
-            const followingResponse = await axios.get(
-                `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=25`,
-                { headers: { 'accept': 'application/json', 'api_key': NEYNAR_API_KEY } }
-            );
+        // Try Dune first (might work with free tier for smaller queries)
+        if (DUNE_API_KEY) {
+            console.log(`[Following] Trying Dune API for FID: ${fid}...`);
+            try {
+                followingFids = await duneAPI.getUserFollowingFids(parseInt(fid), limit);
+                if (followingFids && followingFids.length > 0) {
+                    method = 'dune';
+                    console.log(`[Following] Dune returned ${followingFids.length} FIDs`);
+                }
+            } catch (e) {
+                console.log('[Following] Dune failed, trying Neynar...');
+            }
+        }
 
-            const followingData = followingResponse.data;
-            const users = followingData.users || [];
+        // Try Neynar if Dune didn't work
+        if (!followingFids && NEYNAR_API_KEY) {
+            try {
+                console.log(`[Following] Trying Neynar API for FID: ${fid}...`);
+                const followingResponse = await axios.get(
+                    `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=${limit}`,
+                    { headers: { 'accept': 'application/json', 'api_key': NEYNAR_API_KEY } }
+                );
 
-            const processedUsers = users.map((followItem: any) => {
-                const user = followItem.user || followItem;
-                return analyzeUserForSpam(user);
-            });
+                const users = followingResponse.data.users || [];
+                followingFids = users.map((u: any) => (u.user || u).fid);
+                method = 'neynar';
+                console.log(`[Following] Neynar returned ${followingFids?.length || 0} FIDs`);
+            } catch (error: any) {
+                const errorMessage = error.response?.data?.message || '';
 
-            processedUsers.sort((a: any, b: any) => b.spam_score - a.spam_score);
+                if (errorMessage.includes('paid plan') || errorMessage.includes('Upgrade') || error.response?.status === 402) {
+                    console.log('[Following] Paid plan required');
 
-            const spamCount = processedUsers.filter((u: any) => u.status === 'spam').length;
-            const suspiciousCount = processedUsers.filter((u: any) => u.status === 'suspicious').length;
-            const healthyCount = processedUsers.filter((u: any) => u.status === 'healthy').length;
-            const reviewCount = processedUsers.filter((u: any) => u.should_review).length;
+                    return NextResponse.json({
+                        success: false,
+                        requiresManualMode: true,
+                        error: 'Automatic scanning requires API upgrade',
+                        hint: 'Use Batch Analyze mode instead - it\'s FREE! Paste FIDs to analyze.',
+                        instructions: [
+                            'Open your Warpcast Following page',
+                            'Copy FIDs of accounts you want to check',
+                            'Paste them in Batch Analyze mode',
+                            'Get spam analysis for up to 100 accounts!'
+                        ]
+                    }, { status: 402 });
+                }
 
-            return NextResponse.json({
-                success: true,
-                users: processedUsers,
-                stats: {
+                console.error('[Following] Neynar error:', error.response?.data || error.message);
+            }
+        }
+
+        // If we got FIDs, fetch user details and analyze
+        if (followingFids && followingFids.length > 0) {
+            try {
+                const userResponse = await axios.get(
+                    `https://api.neynar.com/v2/farcaster/user/bulk?fids=${followingFids.slice(0, 100).join(',')}`,
+                    { headers: { 'accept': 'application/json', 'api_key': NEYNAR_API_KEY } }
+                );
+
+                const users = userResponse.data.users || [];
+                const processedUsers = users.map(analyzeUserForSpam);
+                processedUsers.sort((a: any, b: any) => b.spam_score - a.spam_score);
+
+                const stats = {
                     total: processedUsers.length,
-                    spam: spamCount,
-                    suspicious: suspiciousCount,
-                    healthy: healthyCount,
-                    needs_review: reviewCount
-                },
-                pagination: {
-                    has_more: !!followingData.next?.cursor,
-                    next_cursor: followingData.next?.cursor || null
-                },
-                message: `Found ${reviewCount} accounts worth reviewing out of ${processedUsers.length} following`
-            });
-
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || '';
-
-            // Check if it's a paid plan error
-            if (errorMessage.includes('paid plan') || errorMessage.includes('Upgrade') || error.response?.status === 402) {
-                console.log('[Following] Paid plan required - returning manual mode instructions');
+                    spam: processedUsers.filter((u: any) => u.status === 'spam').length,
+                    suspicious: processedUsers.filter((u: any) => u.status === 'suspicious').length,
+                    safe: processedUsers.filter((u: any) => u.status === 'safe').length,
+                    needs_review: processedUsers.filter((u: any) => u.should_review).length
+                };
 
                 return NextResponse.json({
-                    success: false,
-                    requiresManualMode: true,
-                    error: 'The "Scan Following" feature requires a Neynar paid plan.',
-                    hint: 'Use "Batch Analyze" mode instead! You can paste FIDs from your following list.',
-                    instructions: [
-                        '1. Go to your Warpcast Following page',
-                        '2. Use browser console to extract FIDs, or',
-                        '3. Manually enter FIDs in Batch Analyze mode',
-                        '4. We can analyze up to 100 accounts for free!'
-                    ]
-                }, { status: 402 });
-            }
+                    success: true,
+                    users: processedUsers,
+                    stats,
+                    method,
+                    message: `Scanned ${stats.total} accounts - ${stats.spam} spam 🚨, ${stats.suspicious} suspicious ⚠️, ${stats.safe} safe ✅`
+                });
 
-            console.error('[Following] Error:', error.response?.data || error.message);
-            return NextResponse.json({
-                success: false,
-                error: errorMessage || 'Failed to fetch following list'
-            }, { status: 500 });
+            } catch (error: any) {
+                console.error('[Following] User analysis error:', error.response?.data || error.message);
+                return NextResponse.json({
+                    success: false,
+                    error: 'Failed to analyze following accounts'
+                }, { status: 500 });
+            }
         }
+
+        // Neither Dune nor Neynar worked
+        return NextResponse.json({
+            success: false,
+            requiresManualMode: true,
+            error: 'Could not automatically fetch your following list',
+            hint: 'Use Batch Analyze mode to check accounts manually',
+            instructions: [
+                'Go to your Warpcast Following page',
+                'Pick accounts that look suspicious',
+                'Enter their FIDs in Batch Analyze mode',
+                'We\'ll check if they\'re spam!'
+            ]
+        }, { status: 402 });
     }
 
-    return NextResponse.json({ error: 'FID or FIDs parameter required' }, { status: 400 });
+    return NextResponse.json({
+        error: 'FID or FIDs parameter required',
+        usage: {
+            automatic: '/api/following?fid=338060',
+            manual: '/api/following?fids=1,2,3,4,5'
+        }
+    }, { status: 400 });
 }

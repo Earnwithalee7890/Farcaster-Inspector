@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import Navigation from "@/components/Navigation";
 
 export const metadata: Metadata = {
   title: "Farcaster Inspector | Clean Your Feed",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="bg-blur"></div>
           {children}
+          <Navigation />
         </AuthProvider>
       </body>
     </html>

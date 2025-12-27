@@ -4,6 +4,10 @@ import axios from 'axios';
 // Documentation: https://docs.openrank.com/
 
 const OPENRANK_BASE_URL = 'https://graph.cast.k3l.io';
+const SCORES_ENDPOINT = '/scores/global/engagement/fids';
+const RANKINGS_ENDPOINT = '/rankings/global/engagement';
+const FOLLOWERS_ENDPOINT = '/rankings/followers';
+const FOLLOWING_ENDPOINT = '/rankings/following';
 
 export interface OpenRankScore {
     fid: number;
@@ -30,13 +34,15 @@ class OpenRankAPI {
      * Returns graph-based reputation scores
      */
     async getScores(fids: number[]): Promise<OpenRankUser[]> {
+        if (!fids || fids.length === 0) return [];
+
         try {
             const response = await axios.post<OpenRankResponse>(
-                `${OPENRANK_BASE_URL}/scores`,
+                `${OPENRANK_BASE_URL}${SCORES_ENDPOINT}`,
                 fids,
                 {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 10000
+                    timeout: 8000
                 }
             );
             return response.data.result || [];
@@ -61,7 +67,7 @@ class OpenRankAPI {
     async getGlobalRankings(limit: number = 100): Promise<OpenRankUser[]> {
         try {
             const response = await axios.get<OpenRankResponse>(
-                `${OPENRANK_BASE_URL}/rankings/global?limit=${limit}`,
+                `${OPENRANK_BASE_URL}${RANKINGS_ENDPOINT}?limit=${limit}`,
                 { timeout: 15000 }
             );
             return response.data.result || [];
@@ -78,7 +84,7 @@ class OpenRankAPI {
     async getFollowerRankings(fid: number, limit: number = 50): Promise<OpenRankUser[]> {
         try {
             const response = await axios.get<OpenRankResponse>(
-                `${OPENRANK_BASE_URL}/rankings/followers/${fid}?limit=${limit}`,
+                `${OPENRANK_BASE_URL}${FOLLOWERS_ENDPOINT}/${fid}?limit=${limit}`,
                 { timeout: 15000 }
             );
             return response.data.result || [];
@@ -94,7 +100,7 @@ class OpenRankAPI {
     async getFollowingRankings(fid: number, limit: number = 50): Promise<OpenRankUser[]> {
         try {
             const response = await axios.get<OpenRankResponse>(
-                `${OPENRANK_BASE_URL}/rankings/following/${fid}?limit=${limit}`,
+                `${OPENRANK_BASE_URL}${FOLLOWING_ENDPOINT}/${fid}?limit=${limit}`,
                 { timeout: 15000 }
             );
             return response.data.result || [];

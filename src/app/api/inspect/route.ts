@@ -92,9 +92,12 @@ export async function GET(request: NextRequest) {
 
             // Talent Protocol lookup (skip in batch mode for speed)
             let talentData = { score: 0, builder_score: 0, creator_score: 0, passport_id: '', verified: false };
-            if (!batchMode && TALENT_API_KEY && user.verified_addresses?.eth_addresses?.length > 0) {
+
+            // Extract the first verified ETH address
+            const wallet = user.verifications?.[0] || user.verified_addresses?.eth_addresses?.[0];
+
+            if (!batchMode && TALENT_API_KEY && wallet) {
                 try {
-                    const wallet = user.verified_addresses.eth_addresses[0];
                     const tpResponse = await axios.get(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, {
                         headers: { 'X-API-KEY': TALENT_API_KEY },
                         timeout: 2000
@@ -113,9 +116,8 @@ export async function GET(request: NextRequest) {
 
             // Dune onchain labels lookup (skip in batch mode for speed)
             let duneLabels: string[] = [];
-            if (!batchMode && DUNE_API_KEY && user.verified_addresses?.eth_addresses?.length > 0) {
+            if (!batchMode && DUNE_API_KEY && wallet) {
                 try {
-                    const wallet = user.verified_addresses.eth_addresses[0];
                     duneLabels = await duneAPI.getWalletLabels(wallet);
                 } catch (e) { }
             }
@@ -146,7 +148,18 @@ export async function GET(request: NextRequest) {
             const quotientData = quotientScoresMap.get(user.fid);
 
             // Get OpenRank score from pre-fetched map
-            const openRankData = openRankMap.get(user.fid);
+            let openRankData = openRankMap.get(user.fid);
+
+            // Fallback for OpenRank if not found in bulk (only for single user mode)
+            if (!openRankData && !batchMode) {
+                try {
+                    const singleOpenRank = await openRankAPI.getUserScore(user.fid);
+                    if (singleOpenRank) openRankData = singleOpenRank;
+                } catch (e) {
+                    console.error(`[Inspector] OpenRank fallback failed for ${user.fid}`);
+                }
+            }
+
             const openRankTier = openRankAPI.getTier(openRankData?.score || 0);
 
             return {
@@ -190,6 +203,11 @@ export async function GET(request: NextRequest) {
                 inactive: inactiveCount,
                 healthy: healthyCount,
                 trusted: trustedCount
+            },
+            config: {
+                hasTalent: !!TALENT_API_KEY,
+                hasDune: !!DUNE_API_KEY,
+                hasQuotient: !!QUOTIENT_API_KEY
             },
             message: batchMode
                 ? `Batch analyzed ${processedUsers.length} accounts: ${spamCount} spam, ${inactiveCount} inactive, ${healthyCount} healthy`

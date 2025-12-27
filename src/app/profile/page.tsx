@@ -12,6 +12,7 @@ export default function ProfilePage() {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [config, setConfig] = useState<any>(null);
 
     const fetchMyData = async () => {
         if (!user) return;
@@ -21,6 +22,7 @@ export default function ProfilePage() {
             const response = await axios.get(`/api/inspect?fid=${user.fid}`);
             if (response.data.searchedUser) {
                 setUserData(response.data.searchedUser);
+                setConfig(response.data.config);
             }
         } catch (err: any) {
             setError('Failed to load profile data');
@@ -90,6 +92,34 @@ export default function ProfilePage() {
                 </div>
             ) : userData ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+
+                    {/* Missing Config Warning */}
+                    {config && (!config.hasTalent || !config.hasQuotient) && (
+                        <div style={{
+                            padding: '1rem',
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                            borderRadius: '12px',
+                            color: '#F59E0B',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem'
+                        }}>
+                            <Shield size={18} />
+                            <div>
+                                <p style={{ fontWeight: 700 }}>Partial Data Mode</p>
+                                <p style={{ opacity: 0.8 }}>
+                                    {(!config.hasTalent && !config.hasQuotient)
+                                        ? "Talent and Quotient API keys are not configured."
+                                        : !config.hasTalent
+                                            ? "Talent Protocol API key is missing."
+                                            : "Quotient API key is missing."
+                                    } Some scores may show as 0.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Header Card */}
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2.5rem' }}>

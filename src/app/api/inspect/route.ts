@@ -4,6 +4,7 @@ import { calculateSpamScore, calculateTrustLevel, calculateInactivityDays } from
 import { FarcasterUser } from '@/lib/types';
 import duneAPI from '@/lib/dune';
 import quotientAPI, { getQuotientTier, getQuotientTierColor, getQuotientTierEmoji } from '@/lib/quotient';
+import openRankAPI from '@/lib/openrank';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const TALENT_API_KEY = process.env.TALENT_PROTOCOL_API_KEY;
@@ -59,9 +60,12 @@ export async function GET(request: NextRequest) {
 
         // Batch fetch Quotient scores (more efficient)
         const userFids = users.map((u: any) => u.fid);
-        const quotientScoresMap = QUOTIENT_API_KEY
-            ? await quotientAPI.getUserReputationsMap(userFids)
-            : new Map();
+        const [quotientScoresMap, openRankScores] = await Promise.all([
+            QUOTIENT_API_KEY ? quotientAPI.getUserReputationsMap(userFids) : Promise.resolve(new Map()),
+            openRankAPI.getScores(userFids)
+        ]);
+
+        const openRankMap = new Map(openRankScores.map(s => [s.fid, s]));
 
         // Process all users
         const processedUsers = await Promise.all(users.map(async (user: any) => {
@@ -137,6 +141,10 @@ export async function GET(request: NextRequest) {
             // Get Quotient score from pre-fetched map
             const quotientData = quotientScoresMap.get(user.fid);
 
+            // Get OpenRank score from pre-fetched map
+            const openRankData = openRankMap.get(user.fid);
+            const openRankTier = openRankAPI.getTier(openRankData?.score || 0);
+
             return {
                 ...userData,
                 neynar_score: user.score || user.experimental?.neynar_user_score || 0,
@@ -152,7 +160,14 @@ export async function GET(request: NextRequest) {
                 quotient_rank: quotientData?.rank || null,
                 quotient_tier: quotientData?.tier || null,
                 quotient_tier_color: quotientData ? getQuotientTierColor(quotientData.tier) : null,
-                quotient_tier_emoji: quotientData ? getQuotientTierEmoji(quotientData.tier) : null
+                quotient_tier_emoji: quotientData ? getQuotientTierEmoji(quotientData.tier) : null,
+                // OpenRank data
+                openrank_score: openRankData?.score || null,
+                openrank_display_score: openRankData ? (openRankData.score * 1000).toFixed(2) : null,
+                openrank_rank: openRankData?.rank || null,
+                openrank_tier: openRankTier.tier,
+                openrank_tier_emoji: openRankTier.emoji,
+                openrank_tier_color: openRankTier.color
             };
         }));
 

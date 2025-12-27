@@ -626,9 +626,19 @@ export default function Dashboard() {
                                 <p style={{ fontSize: '0.9rem', color: '#ccc' }}>{searchedUser.profile?.bio?.text || 'No bio'}</p>
                             </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.6rem' }}>
-                            {[{ label: 'Followers', value: searchedUser.follower_count?.toLocaleString() }, { label: 'Following', value: searchedUser.following_count?.toLocaleString() }, { label: 'Casts', value: searchedUser.cast_stats?.total || 0 }, { label: 'Neynar', value: `${((searchedUser.neynar_score || 0) * 100).toFixed(0)}%` }, { label: 'Talent', value: searchedUser.talent_score || 0 }, { label: 'Last Active', value: `${searchedUser.inactivity_days || 0}d`, color: searchedUser.inactivity_days > 30 ? 'var(--danger)' : 'var(--success)' }].map((stat, i) => (
-                                <div key={i} style={{ textAlign: 'center', padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}><p style={{ fontSize: '1.1rem', fontWeight: 700, color: stat.color || 'white' }}>{stat.value}</p><p style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>{stat.label}</p></div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.6rem' }}>
+                            {[
+                                { label: 'Followers', value: searchedUser.follower_count?.toLocaleString() },
+                                { label: 'Last Cast', value: searchedUser.inactivity_days > 0 ? `${searchedUser.inactivity_days}d ago` : 'Today', color: searchedUser.inactivity_days > 30 ? 'var(--danger)' : 'var(--success)' },
+                                { label: 'Neynar Trust', value: `${((searchedUser.neynar_score || 0) * 100).toFixed(0)}%` },
+                                { label: 'Talent Score', value: searchedUser.talent_score || 0 },
+                                { label: 'Quotient', value: searchedUser.quotient_tier_emoji ? `${searchedUser.quotient_tier_emoji} ${searchedUser.quotient_tier}` : '0' },
+                                { label: 'OpenRank', value: searchedUser.openrank_display_score ? `🌐 ${searchedUser.openrank_display_score}` : '0' }
+                            ].map((stat, i) => (
+                                <div key={i} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', border: '1px solid var(--card-border)' }}>
+                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: stat.color || 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stat.value}</p>
+                                    <p style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{stat.label}</p>
+                                </div>
                             ))}
                         </div>
                         {searchedUser.spam_labels?.length > 0 && (

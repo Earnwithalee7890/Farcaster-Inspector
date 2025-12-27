@@ -30,6 +30,13 @@ export interface FarcasterUser {
     recent_casts?: any[];
     trust_level?: 'High' | 'Medium' | 'Low' | 'Unknown';
     spam_labels?: string[];
+    // OpenRank fields
+    openrank_score?: number;
+    openrank_display_score?: string;
+    openrank_rank?: number;
+    openrank_tier?: string;
+    openrank_tier_emoji?: string;
+    openrank_tier_color?: string;
 }
 
 export interface NeynarFollowingResponse {

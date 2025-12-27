@@ -1,4 +1,4 @@
-import { ExternalLink, AlertTriangle, UserX, CheckCircle, Award, Zap, Shield, Clock, Calendar } from 'lucide-react';
+import { ExternalLink, AlertTriangle, UserX, CheckCircle, Award, Zap, Shield, Calendar } from 'lucide-react';
 
 interface UserCardProps {
     user: any;
@@ -48,7 +48,9 @@ export default function UserCard({ user }: UserCardProps) {
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem',
-            height: '100%'
+            height: '100%',
+            position: 'relative',
+            overflow: 'hidden'
         }}>
             {/* Header */}
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -83,8 +85,8 @@ export default function UserCard({ user }: UserCardProps) {
                 <span><strong style={{ color: 'white' }}>{user.following_count?.toLocaleString()}</strong> following</span>
             </div>
 
-            {/* Trust & Scores */}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {/* Trust & Scores Grid */}
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {user.trust_level && (
                     <div style={{
                         fontSize: '0.65rem',
@@ -96,12 +98,12 @@ export default function UserCard({ user }: UserCardProps) {
                         padding: '3px 6px',
                         borderRadius: '4px'
                     }}>
-                        <Shield size={10} /> {user.trust_level} Trust
+                        <Shield size={10} /> {user.trust_level}
                     </div>
                 )}
                 {user.neynar_score > 0 && (
                     <div style={{ fontSize: '0.65rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(124, 58, 237, 0.15)', padding: '3px 6px', borderRadius: '4px' }}>
-                        <Award size={10} /> {(user.neynar_score * 100).toFixed(0)}%
+                        <Award size={10} /> {(user.neynar_score * 100).toFixed(0)}
                     </div>
                 )}
                 {user.talent_score > 0 && (
@@ -122,7 +124,21 @@ export default function UserCard({ user }: UserCardProps) {
                         border: `1px solid ${user.quotient_tier_color || '#F59E0B'}30`
                     }}>
                         {user.quotient_tier_emoji || '📊'} Q: {(user.quotient_score * 100).toFixed(0)}
-                        {user.quotient_rank && <span style={{ opacity: 0.7 }}> #{user.quotient_rank}</span>}
+                    </div>
+                )}
+                {user.openrank_score > 0 && (
+                    <div style={{
+                        fontSize: '0.65rem',
+                        color: user.openrank_tier_color || '#10B981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        background: `${user.openrank_tier_color || '#10B981'}15`,
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        border: `1px solid ${user.openrank_tier_color || '#10B981'}30`
+                    }}>
+                        {user.openrank_tier_emoji || '🌐'} OR: {user.openrank_display_score}
                     </div>
                 )}
                 {user.account_age && (
@@ -130,6 +146,27 @@ export default function UserCard({ user }: UserCardProps) {
                         <Calendar size={10} /> {user.account_age.label}
                     </div>
                 )}
+            </div>
+
+            {/* Labels Row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                {user.spam_labels?.map((label: string, i: number) => (
+                    <span key={i} style={{ fontSize: '0.6rem', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 5px', borderRadius: '3px' }}>
+                        {label}
+                    </span>
+                ))}
+                {user.dune_labels?.map((label: string, i: number) => (
+                    <span key={i} style={{
+                        fontSize: '0.6rem',
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1))',
+                        color: '#A855F7',
+                        padding: '2px 5px',
+                        borderRadius: '3px',
+                        border: '1px solid rgba(139, 92, 246, 0.2)'
+                    }}>
+                        🔗 {label}
+                    </span>
+                ))}
             </div>
 
             {/* Footer */}
@@ -144,35 +181,6 @@ export default function UserCard({ user }: UserCardProps) {
                     View <ExternalLink size={11} />
                 </a>
             </div>
-
-            {/* Spam Labels */}
-            {user.spam_labels && user.spam_labels.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                    {user.spam_labels.map((label: string, i: number) => (
-                        <span key={i} style={{ fontSize: '0.6rem', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 5px', borderRadius: '3px' }}>
-                            {label}
-                        </span>
-                    ))}
-                </div>
-            )}
-
-            {/* Dune Onchain Labels */}
-            {user.dune_labels && user.dune_labels.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '0.25rem' }}>
-                    {user.dune_labels.map((label: string, i: number) => (
-                        <span key={i} style={{
-                            fontSize: '0.6rem',
-                            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(236, 72, 153, 0.15))',
-                            color: '#A855F7',
-                            padding: '2px 5px',
-                            borderRadius: '3px',
-                            border: '1px solid rgba(139, 92, 246, 0.2)'
-                        }}>
-                            🔗 {label}
-                        </span>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }

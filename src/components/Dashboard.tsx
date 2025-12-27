@@ -764,6 +764,36 @@ export default function Dashboard() {
                             </motion.div>
                         </a>
 
+                        {/* OpenRank */}
+                        <a href="/openrank" style={{ textDecoration: 'none' }}>
+                            <motion.div
+                                className="glass-card glow-on-hover"
+                                whileHover={{ scale: 1.02 }}
+                                style={{
+                                    padding: '2rem',
+                                    cursor: 'pointer',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), transparent)'
+                                }}
+                            >
+                                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🌐</div>
+                                <h3 style={{ marginBottom: '0.5rem', color: '#10B981' }}>OpenRank</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                                    Graph-based reputation. Trust flows through genuine interactions, not vanity metrics.
+                                </p>
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    color: '#10B981',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600
+                                }}>
+                                    Explore <ExternalLink size={14} />
+                                </div>
+                            </motion.div>
+                        </a>
+
                     </div>
                 </section>
             )}

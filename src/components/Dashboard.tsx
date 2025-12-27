@@ -86,6 +86,8 @@ export default function Dashboard() {
     };
 
     // Scan user's following list for spam
+    const [requiresManualMode, setRequiresManualMode] = useState(false);
+
     const scanMyFollowing = async () => {
         if (!user?.fid) return;
 
@@ -93,20 +95,29 @@ export default function Dashboard() {
         setFollowingResults([]);
         setFollowingStats(null);
         setError('');
+        setRequiresManualMode(false);
         setShowFollowingScan(true);
 
         try {
-            const response = await axios.get(`/api/following?fid=${user.fid}&limit=100`);
+            const response = await axios.get(`/api/following?fid=${user.fid}`);
 
             if (response.data.success) {
                 setFollowingResults(response.data.users || []);
                 setFollowingStats(response.data.stats);
                 setMessage(response.data.message);
+            } else if (response.data.requiresManualMode) {
+                setRequiresManualMode(true);
+                setError(response.data.hint || 'Feature requires Neynar paid plan');
             } else {
                 setError(response.data.error || 'Failed to scan following');
             }
         } catch (err: any) {
-            setError(err.response?.data?.error || 'Failed to scan your following list');
+            if (err.response?.data?.requiresManualMode) {
+                setRequiresManualMode(true);
+                setError(err.response.data.hint || 'Use Batch Analyze mode instead');
+            } else {
+                setError(err.response?.data?.error || 'Failed to scan your following list');
+            }
         } finally {
             setScanningFollowing(false);
         }
@@ -351,6 +362,53 @@ export default function Dashboard() {
                             <div style={{ textAlign: 'center', padding: '3rem' }}>
                                 <Loader2 className="animate-spin" size={40} style={{ margin: '0 auto 1rem', color: 'var(--danger)' }} />
                                 <p style={{ color: 'var(--muted)' }}>Scanning your following list for spam accounts...</p>
+                            </div>
+                        )}
+
+                        {/* Manual Mode Fallback - when paid plan is required */}
+                        {requiresManualMode && !scanningFollowing && (
+                            <div style={{ textAlign: 'center', padding: '2rem' }}>
+                                <AlertTriangle size={40} style={{ margin: '0 auto 1rem', color: 'var(--warning)' }} />
+                                <h4 style={{ marginBottom: '0.75rem', color: 'var(--warning)' }}>
+                                    Automatic scanning requires API upgrade
+                                </h4>
+                                <p style={{ color: 'var(--muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                                    But don't worry! You can still analyze accounts using <strong>Batch Analyze</strong> mode for FREE.
+                                </p>
+
+                                <div style={{
+                                    background: 'rgba(0,0,0,0.3)',
+                                    borderRadius: '12px',
+                                    padding: '1.5rem',
+                                    textAlign: 'left',
+                                    marginBottom: '1.5rem'
+                                }}>
+                                    <h5 style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>📋 How to check your following manually:</h5>
+                                    <ol style={{ paddingLeft: '1.25rem', color: 'var(--muted)', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <li>Go to <a href={`https://warpcast.com/${user?.username}/following`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>your Warpcast following page</a></li>
+                                        <li>Look for accounts with low followers or no profile picture</li>
+                                        <li>Copy suspicious account FIDs and paste them in Batch Analyze</li>
+                                        <li>We'll analyze them for spam indicators!</li>
+                                    </ol>
+                                </div>
+
+                                <button
+                                    onClick={() => { setShowFollowingScan(false); setMode('batch'); }}
+                                    style={{
+                                        padding: '1rem 2rem',
+                                        borderRadius: '10px',
+                                        background: 'var(--primary)',
+                                        color: 'white',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontSize: '1rem'
+                                    }}
+                                >
+                                    <List size={20} />
+                                    Go to Batch Analyze
+                                </button>
                             </div>
                         )}
 

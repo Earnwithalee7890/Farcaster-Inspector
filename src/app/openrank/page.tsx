@@ -31,6 +31,7 @@ interface OpenRankResult {
         confidence: string;
         reason: string;
     };
+    top_followers?: any[];
 }
 
 interface RankingItem {
@@ -59,12 +60,16 @@ const TIER_INFO = [
 
 export default function OpenRankPage() {
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm2, setSearchTerm2] = useState(''); // For comparison
     const [loading, setLoading] = useState(false);
     const [userData, setUserData] = useState<OpenRankResult | null>(null);
+    const [compareData, setCompareData] = useState<OpenRankResult | null>(null);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState<'search' | 'leaderboard'>('search');
+    const [activeTab, setActiveTab] = useState<'search' | 'leaderboard' | 'compare'>('search');
     const [rankings, setRankings] = useState<RankingItem[]>([]);
     const [loadingRankings, setLoadingRankings] = useState(false);
+    const [followerRankings, setFollowerRankings] = useState<any[]>([]);
+    const [loadingFollowers, setLoadingFollowers] = useState(false);
 
     // Load global rankings
     useEffect(() => {
@@ -94,16 +99,62 @@ export default function OpenRankPage() {
         setLoading(true);
         setError('');
         setUserData(null);
+        setFollowerRankings([]);
 
         try {
             const response = await axios.get(`/api/openrank?fid=${searchTerm}`);
             if (response.data.success) {
                 setUserData(response.data);
+                // After getting user, fetch their top followers
+                fetchTopFollowers(response.data.user.fid);
             } else {
                 setError(response.data.error || 'User not found');
             }
         } catch (err: any) {
             setError(err.response?.data?.error || 'Failed to fetch OpenRank data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchTopFollowers = async (fid: number) => {
+        setLoadingFollowers(true);
+        try {
+            const response = await axios.get(`/api/openrank?action=followers&fid=${fid}&limit=5`);
+            if (response.data.success) {
+                // For each follower FID, we'd ideally want usernames, but the API currently returns raw rankings
+                setFollowerRankings(response.data.followers || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch follower rankings:', err);
+        } finally {
+            setLoadingFollowers(false);
+        }
+    };
+
+    const runComparison = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchTerm.trim() || !searchTerm2.trim()) return;
+
+        setLoading(true);
+        setError('');
+        setUserData(null);
+        setCompareData(null);
+
+        try {
+            const [res1, res2] = await Promise.all([
+                axios.get(`/api/openrank?fid=${searchTerm}`),
+                axios.get(`/api/openrank?fid=${searchTerm2}`)
+            ]);
+
+            if (res1.data.success && res2.data.success) {
+                setUserData(res1.data);
+                setCompareData(res2.data);
+            } else {
+                setError('One or both users not found');
+            }
+        } catch (err: any) {
+            setError('Failed to compare users');
         } finally {
             setLoading(false);
         }
@@ -124,18 +175,17 @@ export default function OpenRankPage() {
                     <h1 style={{ fontSize: '2.5rem' }} className="premium-gradient">OpenRank</h1>
                 </div>
                 <p style={{ color: 'var(--muted)', maxWidth: '700px', margin: '0 auto' }}>
-                    <strong>Graph-based reputation</strong> for Farcaster. Unlike follower counts, OpenRank measures
+                    <strong>Graph-based reputation</strong> for Farcaster. Measure
                     <span style={{ color: '#10B981' }}> trust that flows through genuine interactions</span>.
-                    Quality connections from respected accounts matter more than thousands of bot followers.
                 </p>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
                 <button
-                    onClick={() => setActiveTab('search')}
+                    onClick={() => { setActiveTab('search'); setUserData(null); setError(''); }}
                     style={{
-                        padding: '0.75rem 1.5rem',
+                        padding: '0.75rem 1.25rem',
                         borderRadius: '10px',
                         background: activeTab === 'search' ? 'var(--primary)' : 'var(--card-bg)',
                         border: '1px solid var(--card-border)',
@@ -150,9 +200,26 @@ export default function OpenRankPage() {
                     <Search size={18} /> Search User
                 </button>
                 <button
+                    onClick={() => { setActiveTab('compare'); setUserData(null); setCompareData(null); setError(''); }}
+                    style={{
+                        padding: '0.75rem 1.25rem',
+                        borderRadius: '10px',
+                        background: activeTab === 'compare' ? 'var(--primary)' : 'var(--card-bg)',
+                        border: '1px solid var(--card-border)',
+                        color: activeTab === 'compare' ? 'white' : 'var(--muted)',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer'
+                    }}
+                >
+                    <Zap size={18} /> Compare Influence
+                </button>
+                <button
                     onClick={() => setActiveTab('leaderboard')}
                     style={{
-                        padding: '0.75rem 1.5rem',
+                        padding: '0.75rem 1.25rem',
                         borderRadius: '10px',
                         background: activeTab === 'leaderboard' ? 'var(--primary)' : 'var(--card-bg)',
                         border: '1px solid var(--card-border)',
@@ -164,7 +231,7 @@ export default function OpenRankPage() {
                         cursor: 'pointer'
                     }}
                 >
-                    <Crown size={18} /> Global Leaderboard
+                    <Crown size={18} /> Leaderboard
                 </button>
             </div>
 
@@ -175,7 +242,7 @@ export default function OpenRankPage() {
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <input
                                 type="text"
-                                placeholder="Enter FID..."
+                                placeholder="Enter FID (e.g. 1)"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 style={{
@@ -203,7 +270,7 @@ export default function OpenRankPage() {
                                 }}
                             >
                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
-                                Search
+                                Inspect
                             </button>
                         </div>
                     </form>
@@ -214,91 +281,230 @@ export default function OpenRankPage() {
 
                     {/* Result Card */}
                     {userData && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="glass-card"
-                            style={{ padding: '2rem', maxWidth: '700px', margin: '0 auto' }}
-                        >
-                            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginBottom: '2rem' }}>
-                                <img
-                                    src={userData.user.pfp_url || 'https://via.placeholder.com/80'}
-                                    alt=""
-                                    style={{
-                                        width: '80px',
-                                        height: '80px',
-                                        borderRadius: '16px',
-                                        border: `3px solid ${userData.openrank.tier_color}`
-                                    }}
-                                />
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                                        <h2 style={{ fontSize: '1.5rem' }}>{userData.user.display_name}</h2>
-                                        {userData.user.power_badge && (
-                                            <Zap size={18} color="#7C3AED" />
-                                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto' }}>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="glass-card"
+                                style={{ padding: '2rem' }}
+                            >
+                                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginBottom: '2rem' }}>
+                                    <img
+                                        src={userData.user.pfp_url || 'https://via.placeholder.com/80'}
+                                        alt=""
+                                        style={{
+                                            width: '80px',
+                                            height: '80px',
+                                            borderRadius: '16px',
+                                            border: `3px solid ${userData.openrank.tier_color}`
+                                        }}
+                                    />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                                            <h2 style={{ fontSize: '1.5rem' }}>{userData.user.display_name}</h2>
+                                            {userData.user.power_badge && (
+                                                <Zap size={18} color="#7C3AED" />
+                                            )}
+                                        </div>
+                                        <p style={{ color: 'var(--muted)' }}>@{userData.user.username} • FID: {userData.user.fid}</p>
                                     </div>
-                                    <p style={{ color: 'var(--muted)' }}>@{userData.user.username} • FID: {userData.user.fid}</p>
-                                    <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{userData.user.follower_count?.toLocaleString()} followers</p>
                                 </div>
-                            </div>
 
-                            {/* OpenRank Score Display */}
-                            <div style={{
-                                textAlign: 'center',
-                                padding: '2rem',
-                                background: `linear-gradient(135deg, ${userData.openrank.tier_color}20, transparent)`,
-                                borderRadius: '16px',
-                                marginBottom: '1.5rem',
-                                border: `1px solid ${userData.openrank.tier_color}40`
-                            }}>
-                                <p style={{ fontSize: '1rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>OpenRank Score</p>
-                                <p style={{ fontSize: '4rem', fontWeight: 800, color: userData.openrank.tier_color }}>
-                                    {userData.openrank.display_score}
-                                </p>
-                                <p style={{ fontSize: '1.5rem', color: userData.openrank.tier_color, marginTop: '0.5rem' }}>
-                                    {userData.openrank.tier_emoji} {userData.openrank.tier}
-                                </p>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
-                                    {userData.openrank.tier_label}
-                                </p>
-                                {userData.openrank.rank && (
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
-                                        Global Rank: #{userData.openrank.rank.toLocaleString()}
+                                {/* Score Display */}
+                                <div style={{
+                                    textAlign: 'center',
+                                    padding: '2rem',
+                                    background: `linear-gradient(135deg, ${userData.openrank.tier_color}20, transparent)`,
+                                    borderRadius: '16px',
+                                    marginBottom: '1.5rem',
+                                    border: `1px solid ${userData.openrank.tier_color}40`
+                                }}>
+                                    <p style={{ fontSize: '1rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>OpenRank Score</p>
+                                    <p style={{ fontSize: '4rem', fontWeight: 800, color: userData.openrank.tier_color }}>
+                                        {userData.openrank.display_score}
                                     </p>
-                                )}
-                            </div>
+                                    <p style={{ fontSize: '1.5rem', color: userData.openrank.tier_color, marginTop: '0.5rem' }}>
+                                        {userData.openrank.tier_emoji} {userData.openrank.tier}
+                                    </p>
+                                    <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
+                                        {userData.openrank.tier_label}
+                                    </p>
+                                </div>
 
-                            {/* Spam Signal */}
-                            <div style={{
-                                padding: '1rem',
-                                borderRadius: '10px',
-                                background: userData.spam_signal.isSpam ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                                border: `1px solid ${userData.spam_signal.isSpam ? '#EF4444' : '#10B981'}40`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '1rem'
-                            }}>
-                                {userData.spam_signal.isSpam ? (
-                                    <XCircle size={24} color="#EF4444" />
+                                {/* Spam Signal */}
+                                <div style={{
+                                    padding: '1rem',
+                                    borderRadius: '10px',
+                                    background: userData.spam_signal.isSpam ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                    border: `1px solid ${userData.spam_signal.isSpam ? '#EF4444' : '#10B981'}40`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '1rem'
+                                }}>
+                                    {userData.spam_signal.isSpam ? (
+                                        <XCircle size={24} color="#EF4444" />
+                                    ) : (
+                                        <CheckCircle size={24} color="#10B981" />
+                                    )}
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ fontWeight: 600, color: userData.spam_signal.isSpam ? '#EF4444' : '#10B981' }}>
+                                            {userData.spam_signal.isSpam ? '⚠️ Risk Detected' : '✅ Graph Verified'}
+                                        </p>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>{userData.spam_signal.reason}</p>
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            {/* Most Influential Followers */}
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="glass-card"
+                                style={{ padding: '1.5rem' }}
+                            >
+                                <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                                    <Users size={20} color="var(--primary)" />
+                                    Top Follower Influence
+                                </h3>
+
+                                {loadingFollowers ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center' }}>
+                                        <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto', color: 'var(--primary)' }} />
+                                    </div>
+                                ) : followerRankings.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {followerRankings.map((follower, i) => (
+                                            <div key={follower.fid} style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '1rem',
+                                                background: 'rgba(255,255,255,0.03)',
+                                                borderRadius: '10px',
+                                                border: '1px solid var(--card-border)'
+                                            }}>
+                                                <div>
+                                                    <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>FID {follower.fid}</p>
+                                                    <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Rank #{follower.rank}</p>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <p style={{ fontWeight: 700, color: 'var(--primary)' }}>{follower.display_score}</p>
+                                                    <p style={{ fontSize: '0.7rem' }}>{follower.tier_emoji} {follower.tier}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--muted)', textAlign: 'center', marginTop: '0.5rem' }}>
+                                            These 5 followers provide the most "reputation gravity" to @{userData.user.username}.
+                                        </p>
+                                    </div>
                                 ) : (
-                                    <CheckCircle size={24} color="#10B981" />
+                                    <p style={{ textAlign: 'center', color: 'var(--muted)', padding: '2rem' }}>
+                                        No follower influence data available for this user.
+                                    </p>
                                 )}
-                                <div>
-                                    <p style={{
-                                        fontWeight: 600,
-                                        color: userData.spam_signal.isSpam ? '#EF4444' : '#10B981'
-                                    }}>
-                                        {userData.spam_signal.isSpam ? '⚠️ Spam Signal Detected' : '✅ Sybil Resistant'}
-                                    </p>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-                                        {userData.spam_signal.reason} (Confidence: {userData.spam_signal.confidence})
-                                    </p>
-                                </div>
-                            </div>
-                        </motion.div>
+                            </motion.div>
+                        </div>
                     )}
                 </>
+            )}
+
+            {/* Comparison Tab */}
+            {activeTab === 'compare' && (
+                <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+                    <form onSubmit={runComparison} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '1rem', marginBottom: '3rem' }}>
+                        <input
+                            type="text"
+                            placeholder="FID A"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{ padding: '1rem', borderRadius: '12px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'white', textAlign: 'center' }}
+                        />
+                        <div style={{ fontWeight: 800, color: 'var(--muted)' }}>VS</div>
+                        <input
+                            type="text"
+                            placeholder="FID B"
+                            value={searchTerm2}
+                            onChange={(e) => setSearchTerm2(e.target.value)}
+                            style={{ padding: '1rem', borderRadius: '12px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'white', textAlign: 'center' }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            style={{
+                                gridColumn: 'span 3',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                background: 'linear-gradient(135deg, #10B981, #7C3AED)',
+                                color: 'white',
+                                fontWeight: 700,
+                                marginTop: '0.5rem',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {loading ? <Loader2 className="animate-spin" size={20} /> : 'Compare Reputation Gravity'}
+                        </button>
+                    </form>
+
+                    {userData && compareData && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                            {/* User A */}
+                            <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="glass-card" style={{ padding: '1.5rem', border: userData.openrank.score > compareData.openrank.score ? '2px solid var(--primary)' : '1px solid var(--card-border)' }}>
+                                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                                    <img src={userData.user.pfp_url || ''} style={{ width: '60px', height: '60px', borderRadius: '12px', marginBottom: '0.5rem' }} />
+                                    <h3 style={{ fontSize: '1rem' }}>{userData.user.display_name}</h3>
+                                    <p style={{ color: userData.openrank.tier_color, fontWeight: 700 }}>{userData.openrank.display_score}</p>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--muted)' }}>Rank</span>
+                                        <span>#{userData.openrank.rank?.toLocaleString() || 'N/A'}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--muted)' }}>Tier</span>
+                                        <span>{userData.openrank.tier_emoji} {userData.openrank.tier}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--muted)' }}>Followers</span>
+                                        <span>{userData.user.follower_count?.toLocaleString()}</span>
+                                    </div>
+                                    {userData.openrank.score >= compareData.openrank.score && (
+                                        <div style={{ marginTop: '1rem', padding: '0.5rem', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', textAlign: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
+                                            Reputation Leader 👑
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+
+                            {/* User B */}
+                            <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="glass-card" style={{ padding: '1.5rem', border: compareData.openrank.score > userData.openrank.score ? '2px solid var(--primary)' : '1px solid var(--card-border)' }}>
+                                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                                    <img src={compareData.user.pfp_url || ''} style={{ width: '60px', height: '60px', borderRadius: '12px', marginBottom: '0.5rem' }} />
+                                    <h3 style={{ fontSize: '1rem' }}>{compareData.user.display_name}</h3>
+                                    <p style={{ color: compareData.openrank.tier_color, fontWeight: 700 }}>{compareData.openrank.display_score}</p>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--muted)' }}>Rank</span>
+                                        <span>#{compareData.openrank.rank?.toLocaleString() || 'N/A'}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--muted)' }}>Tier</span>
+                                        <span>{compareData.openrank.tier_emoji} {compareData.openrank.tier}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--muted)' }}>Followers</span>
+                                        <span>{compareData.user.follower_count?.toLocaleString()}</span>
+                                    </div>
+                                    {compareData.openrank.score > userData.openrank.score && (
+                                        <div style={{ marginTop: '1rem', padding: '0.5rem', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', textAlign: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
+                                            Reputation Leader 👑
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* Leaderboard Tab */}
